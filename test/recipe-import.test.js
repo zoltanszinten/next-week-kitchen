@@ -4,10 +4,11 @@ import { cleanRecipe, importRecipeUrl, parseRecipeHtml, recipeUrl } from '../rec
 
 test('imports Nosalty Recipe data and Hungarian amounts', () => {
   const html = `<script type="application/ld+json">${JSON.stringify({ '@type': 'Recipe', name: 'Szaftos paprikás csirke', recipeYield: 4,
-    recipeIngredient: ['1 db Csirke feldarabolva', '1.5 ek Sertészsír', 'só ízlés szerint'], recipeInstructions: ['A hagymát felvágjuk.', 'Főzzük.'] })}</script>`;
+    recipeIngredient: ['1 db Csirke feldarabolva', '1.5 ek Sertészsír', '0 ízlés szerint Só'], recipeInstructions: ['A hagymát felvágjuk.', 'Főzzük.'] })}</script>`;
   const recipe = parseRecipeHtml(html, 'https://www.nosalty.hu/recept/szaftos-paprikas-csirke');
   assert.equal(recipe.title, 'Szaftos paprikás csirke');
   assert.deepEqual(recipe.ingredients[0], { name: 'Csirke feldarabolva', measure: '1 db' });
+  assert.deepEqual(recipe.ingredients[2], { name: 'Só', measure: 'ízlés szerint' });
   assert.equal(recipe.baseServings, 4);
   assert.match(recipe.instructions, /Főzzük/);
 });
@@ -29,6 +30,11 @@ test('imports an older Blogger ingredient list', () => {
   assert.deepEqual(recipe.ingredients[0], { name: 'fusili', measure: '20 dkg' });
   assert.equal(recipe.ingredients[1].name, 'pár szem koktélparadicsom');
   assert.equal(recipe.baseServings, 3);
+});
+
+test('Blogger document title overrides the site header when post markup differs', () => {
+  const html = '<title>Görög tésztasaláta ~ Lilla főz</title><h1>Lilla főz</h1><p><strong>Hozzávalók:</strong></p><ul><li>20 dkg fusili</li></ul>';
+  assert.equal(parseRecipeHtml(html, 'https://lillafoz.blogspot.com/2009/06/gorog-tesztasalata.html').title, 'Görög tésztasaláta');
 });
 
 test('URL import rejects local targets and follows a public redirect', async () => {

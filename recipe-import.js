@@ -39,6 +39,8 @@ export function cleanRecipe(input, id) {
 
 function ingredient(line) {
   const value = plain(line);
+  const toTaste = value.match(/^(?:0\s+ízlés\s+szerint\s+(.+)|(.+?)\s+ízlés\s+szerint)$/i);
+  if (toTaste) return { name: toTaste[1] || toTaste[2], measure: 'ízlés szerint' };
   const match = value.match(/^((?:kb\.?\s*)?(?:\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?|fél|egy|két)\s+(?:(?:közepes|nagy|kis)\s+)?(?:g|kg|dkg|ml|l|db|ek|tk|evőkanál|teáskanál|csipet|maréknyi|cup|cups|tbsp|tsp)\b)\s+(.+)$/i);
   return match ? { name: match[2], measure: match[1] } : { name: value, measure: '' };
 }
@@ -87,7 +89,8 @@ export function parseRecipeHtml(html, url) {
     ingredients = [...list.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)].map(match => ingredient(match[1].replace(/<br\s*\/?>(?:\s*<br\s*\/?>)?[\s\S]*$/i, ''))).filter(item => item.name);
     instructions = plain(page.match(/Hozzávalók:[\s\S]*?<\/ul>\s*<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1]);
     baseServings = Number(page.match(/(\d+)\s*fős adag/i)?.[1]);
-    title = plain(page.match(/<h[12][^>]*class="[^"]*post-title[^"]*"[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i)?.[1]) || title;
+    title = plain(page.match(/<h[12][^>]*class=["'][^"']*post-title[^"']*["'][^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i)?.[1]) ||
+      plain(page.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]).split(/\s+[~|]\s+/)[0] || title;
   }
   if (!ingredients.length) throw new Error('This page did not expose ingredients. You can add the recipe manually and keep its URL.');
   return cleanRecipe({ title, source, ingredients, instructions, baseServings: baseServings >= 1 && baseServings <= 50 ? baseServings : 4,
