@@ -7,8 +7,8 @@ const meal = (id, ingredients, category='Vegetarian') => ({idMeal:String(id),str
 test('ingredient avoidance filters recipes before planning', async () => {
   const names = Array.from({length:16},(_,i)=>({idMeal:String(i+1)}));
   const fetcher = async url => ({ok:true,json:async()=>url.includes('filter.php')?{meals:names}:{meals:[meal(new URL(url).searchParams.get('i'),[['Garlic','2 cloves'],['Rice','200g'],['Tomato','2'],['Carrot','1'],['Onion','1']])]}});
-  await assert.rejects(makePlan({diet:'vegetarian',avoid:['garlic'],lighter:false},fetcher),/Only 0 matching recipes/);
-  const result = await makePlan({diet:'vegetarian',avoid:['milk'],lighter:false},fetcher);
+  await assert.rejects(makePlan({diet:'vegetarian',avoid:['garlic']},fetcher),/Only 0 matching recipes/);
+  const result = await makePlan({diet:'vegetarian',avoid:['milk']},fetcher);
   assert.equal(result.length,7);
   assert(result.every(recipe=>recipe.ingredients.some(item=>item.name==='Garlic')));
 });
@@ -55,11 +55,11 @@ test('a partial search stays within the Free Worker outbound request budget', as
   assert(calls<=44,`Expected at most 44 outbound calls, got ${calls}`);
 });
 
-test('unknown calories do not exclude a dinner unless lighter meals were requested', async () => {
+test('unknown calories do not exclude a dinner', async () => {
   const names=Array.from({length:10},(_,i)=>({idMeal:String(i+1)}));
   const fetcher=async url=>({ok:true,json:async()=>url.includes('filter.php')?{meals:names}:{meals:[meal(new URL(url).searchParams.get('i'),[['Rice','some'],['Tomato','some'],['Onion','some'],['Carrot','some'],['Salt','some']])]}});
   assert.equal((await makePlan({diet:'all',count:3},fetcher)).length,3);
-  assert.deepEqual(await makePlan({diet:'all',count:3,lighter:true,allowPartial:true},fetcher),[]);
+  assert.equal((await makePlan({diet:'all',count:3,lighter:true},fetcher)).length,3);
 });
 
 test('an available Hungarian dinner is checked early and included', async () => {

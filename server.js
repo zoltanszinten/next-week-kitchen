@@ -51,7 +51,7 @@ function validWeek(plan) {
   return plan && typeof plan === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(plan.week) &&
     Number.isInteger(plan.dinnerCount) && plan.dinnerCount >= 1 && plan.dinnerCount <= 7 &&
     Number.isInteger(plan.servings) && plan.servings >= 1 && plan.servings <= 6 &&
-    ['all','vegetarian','no-fish'].includes(plan.diet) && typeof plan.lighter === 'boolean' &&
+    ['all','vegetarian','no-fish'].includes(plan.diet) && (plan.lighter === undefined || typeof plan.lighter === 'boolean') &&
     typeof plan.empty === 'boolean' && shortStrings(plan.avoid, 30) && shortStrings(plan.pantry, 100) &&
     (plan.shoppingRecipeIds === undefined || (Array.isArray(plan.shoppingRecipeIds) && plan.shoppingRecipeIds.length <= 7 && Array.isArray(plan.recipes) && plan.shoppingRecipeIds.every(id => typeof id === 'string' && plan.recipes.some(recipe => recipe?.id === id)) && new Set(plan.shoppingRecipeIds).size === plan.shoppingRecipeIds.length)) &&
     plan.checked && typeof plan.checked === 'object' && !Array.isArray(plan.checked) &&

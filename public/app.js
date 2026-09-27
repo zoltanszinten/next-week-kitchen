@@ -8,7 +8,7 @@
   const el = {
     home:$('homeView'), wizard:$('wizardView'), homePlan:$('homePlan'), homeEmpty:$('homeEmpty'), homeGrid:$('homeGrid'), homeRange:$('homeRange'), homeSummary:$('homeSummary'), homeSelectNote:$('homeSelectNote'), homeShop:$('homeShopBtn'), homeShopping:$('homeShopping'), homeMenuTitle:$('homeMenuTitle'),
     progress:$('wizardProgress'), grid:$('planGrid'), list:$('shoppingList'), range:$('weekRange'), planError:$('planError'), selectionCount:$('selectionCount'),
-    dinnerCount:$('dinnerCount'), servings:$('servings'), diet:$('diet'), lighter:$('lighter'), avoidSearch:$('avoidSearch'), avoidOptions:$('avoidOptions'), avoidItems:$('avoidItems'),
+    dinnerCount:$('dinnerCount'), servings:$('servings'), diet:$('diet'), avoidSearch:$('avoidSearch'), avoidOptions:$('avoidOptions'), avoidItems:$('avoidItems'),
     pantry:$('pantryItems'), pantrySearch:$('pantrySearch'), pantryOptions:$('pantryOptions'), empty:$('emptyKitchen'),
     planBtn:$('generateBtn'), shoppingIntro:$('shoppingIntro'), recipeCountNote:$('recipeCountNote'),
     dialog:$('recipeDialog'), content:$('recipeContent'), toast:$('toast')
@@ -37,7 +37,7 @@
   function mondayFor(plan) {const d=new Date(`${plan.week}T12:00:00`);return Number.isNaN(d.getTime())?nextMonday():d;}
   function weekRange(plan) {const monday=mondayFor(plan),sunday=new Date(monday);sunday.setDate(monday.getDate()+6);const fmt=d=>d.toLocaleDateString('en-GB',{day:'numeric',month:'long'});return `${fmt(monday)} – ${fmt(sunday)} · dinner for ${plan.servings} ${plan.servings===1?'person':'people'}`;}
   function load(fromServer) {
-    const blank={week:weekKey(),recipes:[],shoppingRecipeIds:[],dinnerCount:7,servings:4,diet:'all',lighter:false,avoid:[...DEFAULT_AVOID],avoidDefaultsVersion:1,pantry:[],empty:true,checked:{}};
+    const blank={week:weekKey(),recipes:[],shoppingRecipeIds:[],dinnerCount:7,servings:4,diet:'all',avoid:[...DEFAULT_AVOID],avoidDefaultsVersion:1,pantry:[],empty:true,checked:{}};
     try {
       const saved=fromServer===undefined?JSON.parse(localStorage.getItem(KEY)):fromServer;
       if(!saved||typeof saved!=='object') {
@@ -50,7 +50,7 @@
       const recipes=Array.isArray(saved.recipes)&&saved.recipes.every(x=>x&&Array.isArray(x.ingredients))?saved.recipes:[];
       const recipeIds=new Set(recipes.map(recipe=>recipe.id));
       const shoppingRecipeIds=Array.isArray(saved.shoppingRecipeIds)?[...new Set(saved.shoppingRecipeIds.filter(id=>recipeIds.has(id)))]:recipes.map(recipe=>recipe.id);
-      return {...blank,week:/^\d{4}-\d{2}-\d{2}$/.test(saved.week||'')?saved.week:weekKey(),dinnerCount:Number.isInteger(saved.dinnerCount)&&saved.dinnerCount>=1&&saved.dinnerCount<=7?saved.dinnerCount:7,servings:[1,2,3,4,5,6].includes(Number(saved.servings))?Number(saved.servings):4,diet:['all','vegetarian','no-fish'].includes(saved.diet)?saved.diet:'all',lighter:Boolean(saved.lighter),avoid,pantry:Array.isArray(saved.pantry)?saved.pantry.filter(x=>typeof x==='string').slice(0,100):[],empty:Boolean(saved.empty),checked:saved.checked&&typeof saved.checked==='object'?saved.checked:{},recipes,shoppingRecipeIds};
+      return {...blank,week:/^\d{4}-\d{2}-\d{2}$/.test(saved.week||'')?saved.week:weekKey(),dinnerCount:Number.isInteger(saved.dinnerCount)&&saved.dinnerCount>=1&&saved.dinnerCount<=7?saved.dinnerCount:7,servings:[1,2,3,4,5,6].includes(Number(saved.servings))?Number(saved.servings):4,diet:['all','vegetarian','no-fish'].includes(saved.diet)?saved.diet:'all',avoid,pantry:Array.isArray(saved.pantry)?saved.pantry.filter(x=>typeof x==='string').slice(0,100):[],empty:Boolean(saved.empty),checked:saved.checked&&typeof saved.checked==='object'?saved.checked:{},recipes,shoppingRecipeIds};
     } catch {return blank;}
   }
   function showToast(message) {el.toast.textContent=message;el.toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.toast.classList.remove('show'),3500);}
@@ -137,7 +137,7 @@
     el.homePlan.hidden=!hasPlan;el.homeShopping.hidden=!hasPlan;el.homeEmpty.hidden=hasPlan;el.homeShop.hidden=!hasPlan;
     if(hasPlan){const count=committed.recipes.length,selected=selectedShoppingRecipes();el.homeMenuTitle.textContent=`Your ${count} ${count===1?'dinner':'dinners'}`;el.homeRange.textContent=weekRange(committed);el.homeGrid.dataset.count=String(count);el.homeGrid.innerHTML=cards(committed.recipes);const items=new Set(selected.flatMap(recipe=>recipe.ingredients.map(item=>norm(item.name))));el.homeSummary.textContent=`${selected.length} of ${count} dinners selected · ${items.size} ingredients`;el.homeSelectNote.textContent=`Tap dinner cards to choose what to buy for. ${committed.empty?'Starting with an empty kitchen.':`${committed.pantry.length} items already at home.`}`;renderShopping();}
   }
-  function syncControls() {el.dinnerCount.value=String(state.dinnerCount);el.servings.value=String(state.servings);el.diet.value=state.diet;el.lighter.value=state.lighter?'yes':'no';}
+  function syncControls() {el.dinnerCount.value=String(state.dinnerCount);el.servings.value=String(state.servings);el.diet.value=state.diet;}
   function renderAvoid() {el.avoidItems.innerHTML=state.avoid.map((name,i)=>`<span class="avoid-chip">${esc(name)} <button type="button" data-remove-avoid="${i}" aria-label="Allow ${esc(name)} again">×</button></span>`).join('')||'<span class="pantry-empty">No ingredients excluded.</span>';}
   function renderPantry() {el.empty.checked=state.empty;el.pantry.innerHTML=state.pantry.length?state.pantry.map((name,i)=>`<span class="pantry-chip">${esc(name)} <button type="button" data-remove-pantry="${i}" aria-label="Remove ${esc(name)}">×</button></span>`).join(''):`<span class="pantry-empty">${state.empty?'Starting with an empty kitchen.':'Nothing added yet.'}</span>`;}
   function candidateCards() {
@@ -234,14 +234,14 @@
         attempts++;
         const blocked=new Set([...exclude,...recipes.map(recipe=>recipe.id)]);
         try{
-          const data=await api('/api/plan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({diet:state.diet,lighter:state.lighter,avoid:state.avoid,pantry:state.empty?[]:state.pantry,previous,exclude:[...blocked].slice(-100),count:needed-recipes.length})});
+          const data=await api('/api/plan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({diet:state.diet,avoid:state.avoid,pantry:state.empty?[]:state.pantry,previous,exclude:[...blocked].slice(-100),count:needed-recipes.length})});
           if(!Array.isArray(data.recipes))throw new Error('The recipe service returned an invalid response.');
           for(const recipe of data.recipes)if(recipe&&typeof recipe.id==='string'&&!blocked.has(recipe.id)&&!recipes.some(item=>item.id===recipe.id))recipes.push(recipe);
         }catch(error){lastError=error;}
         if(state!==draft||wizardStep===0||planRevision!==revision)return;
       }
       if(state!==draft||wizardStep===0||planRevision!==revision)return;
-      if(recipes.length!==needed)throw new Error(recipes.length===0&&lastError?lastError.message:`Found ${recipes.length} of ${needed} ideas after ${attempts} searches. Try fewer excluded ingredients or turn off Lighter dinners.`);
+      if(recipes.length!==needed)throw new Error(recipes.length===0&&lastError?lastError.message:`Found ${recipes.length} of ${needed} ideas after ${attempts} searches. Try fewer excluded ingredients.`);
       if(initial)candidates=recipes;
       else for(let i=0;i<refreshPositions.length;i++)candidates[refreshPositions[i]]=recipes[i];
       for(const recipe of recipes)seenCandidateIds.add(recipe.id);
@@ -260,7 +260,7 @@
   $('startWizardBtn').addEventListener('click',()=>startWizard().catch(error=>showToast(error.message||'Could not load the shared week.')));$('emptyStartBtn').addEventListener('click',()=>startWizard().catch(error=>showToast(error.message||'Could not load the shared week.')));el.homeShop.addEventListener('click',()=>el.homeShopping.scrollIntoView({behavior:'smooth'}));$('homeLogo').addEventListener('click',event=>{event.preventDefault();if(wizardStep)leaveWizard();else window.scrollTo({top:0,behavior:'smooth'});});
   $('toKitchenBtn').addEventListener('click',()=>showStep(2));$('backPrefsBtn').addEventListener('click',()=>showStep(1));$('toRecipesBtn').addEventListener('click',()=>{showStep(3);if(candidates.length!==state.dinnerCount*2)generate();});$('backKitchenBtn').addEventListener('click',()=>showStep(2));$('finishBtn').addEventListener('click',()=>leaveWizard(true));
   el.progress.addEventListener('click',event=>{const button=event.target.closest('[data-go-step]');if(!button||button.disabled)return;const step=Number(button.dataset.goStep);showStep(step);if(step===3&&candidates.length!==state.dinnerCount*2)generate();});
-  el.dinnerCount.addEventListener('change',()=>{state.dinnerCount=Number(el.dinnerCount.value);invalidateRecipes();});el.servings.addEventListener('change',()=>{state.servings=Number(el.servings.value);invalidateRecipes();});el.diet.addEventListener('change',()=>{state.diet=el.diet.value;invalidateRecipes();});el.lighter.addEventListener('change',()=>{state.lighter=el.lighter.value==='yes';invalidateRecipes();});
+  el.dinnerCount.addEventListener('change',()=>{state.dinnerCount=Number(el.dinnerCount.value);invalidateRecipes();});el.servings.addEventListener('change',()=>{state.servings=Number(el.servings.value);invalidateRecipes();});el.diet.addEventListener('change',()=>{state.diet=el.diet.value;invalidateRecipes();});
   $('addAvoidBtn').addEventListener('click',()=>{const name=el.avoidSearch.value.trim();if(!name)return;if(name.length>80||state.avoid.length>=30){showToast('Use up to 30 short ingredient names.');return;}if(!state.avoid.some(x=>norm(x)===norm(name)))state.avoid.push(name);el.avoidSearch.value='';invalidateRecipes();renderAvoid();});el.avoidSearch.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();$('addAvoidBtn').click();}});el.avoidItems.addEventListener('click',event=>{const button=event.target.closest('[data-remove-avoid]');if(button){state.avoid.splice(Number(button.dataset.removeAvoid),1);invalidateRecipes();renderAvoid();}});
   el.empty.addEventListener('change',()=>{state.empty=el.empty.checked;if(state.empty)state.pantry=[];invalidateRecipes();renderPantry();});$('addPantryBtn').addEventListener('click',()=>{addPantry(el.pantrySearch.value.trim());el.pantrySearch.value='';});el.pantrySearch.addEventListener('keydown',event=>{if(event.key==='Enter'){$('addPantryBtn').click();}});el.pantry.addEventListener('click',event=>{const button=event.target.closest('[data-remove-pantry]');if(button){state.pantry.splice(Number(button.dataset.removePantry),1);invalidateRecipes();renderPantry();}});
   el.planBtn.addEventListener('click',()=>generate());el.grid.addEventListener('click',event=>{const recipe=event.target.closest('[data-recipe]'),toggle=event.target.closest('[data-toggle]');if(recipe)openRecipe(candidates[Number(recipe.dataset.recipe)]);else if(toggle)toggleCandidate(Number(toggle.dataset.toggle));});el.homeGrid.addEventListener('click',event=>{const recipe=event.target.closest('[data-recipe]'),toggle=event.target.closest('[data-home-toggle]');if(recipe)openRecipe(state.recipes[Number(recipe.dataset.recipe)]);else if(toggle)toggleHomeRecipe(Number(toggle.dataset.homeToggle));});

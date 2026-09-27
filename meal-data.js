@@ -148,7 +148,6 @@ export async function makePlan(options = {}, fetcher = fetch) {
       if (result.status !== 'fulfilled' || !result.value) continue;
       const recipe = recipeFromMeal(result.value);
       if (!recipe.title || !recipe.ingredients.length || seen.has(recipe.id) || exclude.has(recipe.id) || !matchesPreferences(recipe, { diet, avoid })) continue;
-      if (options.lighter && (recipe.kcal === null || recipe.kcal > 600)) continue;
       seen.add(recipe.id); chosen.push(recipe);
       if (chosen.length === target) break;
     }

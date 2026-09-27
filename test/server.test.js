@@ -30,11 +30,11 @@ test('planning endpoint returns live-provider results without built-in recipes',
   const base=`http://127.0.0.1:${server.address().port}`;
   try {
     assert.deepEqual(await (await fetch(`${base}/api/ingredients`)).json(),{ingredients:['Garlic','Milk']});
-    const response=await fetch(`${base}/api/plan`,{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify({diet:'all',lighter:true,avoid:['Garlic'],count:3})});
+    const response=await fetch(`${base}/api/plan`,{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify({diet:'all',avoid:['Garlic'],count:3})});
     assert.equal(response.status,200);
     assert.equal((await response.json()).recipes[0].title,'Fresh recipe');
     assert.deepEqual(preferences.avoid,['Garlic']);
-    assert.equal(preferences.lighter,true);
+    assert.equal(preferences.lighter,undefined);
     assert.equal(preferences.count,3);
     const invalidCount=await fetch(`${base}/api/plan`,{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify({diet:'all',avoid:[],count:15})});
     assert.equal(invalidCount.status,400);
@@ -51,7 +51,7 @@ test('shared week persists to JSON and rejects stale device saves', async () => 
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
-  const week = {week:'2026-09-28',dinnerCount:1,servings:2,diet:'all',lighter:true,avoid:['Mushrooms'],pantry:['Milk'],empty:false,checked:{},recipes:[{id:'42',title:'Tomato pasta',ingredients:[{name:'Tomato',measure:'2'}]}]};
+  const week = {week:'2026-09-28',dinnerCount:1,servings:2,diet:'all',avoid:['Mushrooms'],pantry:['Milk'],empty:false,checked:{},recipes:[{id:'42',title:'Tomato pasta',ingredients:[{name:'Tomato',measure:'2'}]}]};
   const put = (revision, plan, origin=base) => fetch(`${base}/api/week`, {method:'PUT',headers:{origin,'content-type':'application/json'},body:JSON.stringify({revision,plan})});
   try {
     assert.deepEqual(await (await fetch(`${base}/api/week`)).json(), {revision:0,plan:null});
