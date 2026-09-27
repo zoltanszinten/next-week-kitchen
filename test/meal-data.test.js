@@ -91,3 +91,19 @@ test('an available Hungarian dinner is checked early and included', async () => 
   const result=await makePlan({diet:'all',count:6},fetcher);
   assert(result.some(recipe=>recipe.id==='999'));
 });
+
+test('European dinners are preferred while other cuisines remain available', async () => {
+  const categoryIds=Array.from({length:40},(_,i)=>({idMeal:String(i+1)}));
+  const fetcher=async url=>{
+    const path=new URL(url), area=path.searchParams.get('a');
+    if(path.pathname.endsWith('filter.php')) return {ok:true,json:async()=>({meals:area==='Polish'?[{idMeal:'901'},{idMeal:'902'}]:area==='Italian'?[{idMeal:'903'},{idMeal:'904'}]:area?[]:categoryIds})};
+    const id=path.searchParams.get('i');
+    const raw=meal(id,[['Rice','200g'],['Tomato','2'],['Onion','1'],['Carrot','1'],['Salt','1 tsp']]);
+    raw.strArea=Number(id)>=901?Number(id)<=902?'Polish':'Italian':'Thai';
+    return {ok:true,json:async()=>({meals:[raw]})};
+  };
+  const result=await makePlan({count:6},fetcher);
+  assert.equal(result.length,6);
+  assert.equal(result.filter(recipe=>['Polish','Italian'].includes(recipe.area)).length,4);
+  assert(result.some(recipe=>recipe.area==='Thai'));
+});

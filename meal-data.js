@@ -14,6 +14,8 @@ export async function ingredientNames(fetcher = fetch) {
 }
 
 const categories = ['Vegetarian', 'Vegan', 'Chicken', 'Beef', 'Pork', 'Pasta', 'Seafood', 'Miscellaneous', 'Lamb'];
+const centralEuropeanAreas = new Set(['Hungarian', 'Polish', 'Croatian', 'Dutch', 'Ukrainian']);
+const europeanAreas = new Set([...centralEuropeanAreas, 'Italian', 'French', 'Spanish', 'Portuguese', 'Greek', 'British', 'Irish']);
 const fishWords = /fish|salmon|tuna|prawn|shrimp|seafood|cod|anchov|sardine|mackerel|trout|haddock|squid|crab|lobster/i;
 const meatWords = /beef|chicken|pork|lamb|turkey|bacon|ham|sausage|meat|duck|gelatine|gelatin/i;
 
@@ -143,25 +145,24 @@ export async function makePlan(options = {}, fetcher = fetch) {
   const previous = new Set(Array.isArray(options.previous) ? options.previous.map(String) : []);
   const exclude = new Set(Array.isArray(options.exclude) ? options.exclude.map(String).slice(0,100) : []);
   const poolCategories = diet === 'vegetarian' ? ['Vegetarian','Vegan'] : diet === 'no-fish' ? categories.filter(x => x !== 'Seafood') : categories;
-  const pickedCategories = diet === 'vegetarian' ? poolCategories : diet === 'no-fish'
-    ? ['Vegetarian','Vegan',...shuffle(poolCategories.filter(x => !['Vegetarian','Vegan'].includes(x))).slice(0,5)]
-    : ['Vegetarian','Vegan','Seafood',...shuffle(poolCategories.filter(x => !['Vegetarian','Vegan','Seafood'].includes(x))).slice(0,4)];
+  const pickedCategories = diet === 'vegetarian' ? poolCategories
+    : ['Vegetarian','Chicken',...shuffle(poolCategories.filter(x => !['Vegetarian','Chicken'].includes(x))).slice(0,2)];
+  const pickedAreas = ['Hungarian', 'Polish', 'Italian', shuffle(['Croatian','Dutch','Ukrainian','French','Spanish','Portuguese','Greek','British','Irish'])[0]];
   const listings = await Promise.allSettled([
     ...pickedCategories.map(async category => (await json(`filter.php?c=${encodeURIComponent(category)}`, fetcher)).meals || []),
-    (async () => (await json('filter.php?a=Hungarian', fetcher)).meals || [])()
+    ...pickedAreas.map(async area => (await json(`filter.php?a=${encodeURIComponent(area)}`, fetcher)).meals || [])
   ]);
-  const hungarianListing = listings.at(-1);
-  const hungarianIds = shuffle(hungarianListing.status === 'fulfilled' ? hungarianListing.value.map(row => String(row.idMeal)) : []);
-  const buckets = listings.slice(0, -1).map(result => shuffle(result.status === 'fulfilled' ? result.value.map(row => String(row.idMeal)) : []));
+  const bucket = result => shuffle(result.status === 'fulfilled' ? result.value.map(row => String(row.idMeal)) : []);
+  const categoryBuckets = listings.slice(0, pickedCategories.length).map(bucket);
+  const areaBuckets = listings.slice(pickedCategories.length).map(bucket);
   const ids = [], seenIds = new Set();
-  for (const id of hungarianIds.splice(0, Math.min(8, count))) {
-    if (id && !seenIds.has(id)) { ids.push(id); seenIds.add(id); }
-  }
-  buckets.push(hungarianIds);
-  while (buckets.some(bucket => bucket.length)) for (const bucket of buckets) {
-    const id = bucket.shift();
-    if (id && !seenIds.has(id)) { ids.push(id); seenIds.add(id); }
-  }
+  const addFrom = buckets => { for (const entries of buckets) {
+    const id = entries.shift();
+    if (id && !seenIds.has(id) && !exclude.has(id)) { ids.push(id); seenIds.add(id); }
+  } };
+  while (ids.length < 18 && areaBuckets.some(entries => entries.length)) addFrom(areaBuckets);
+  const buckets = [...categoryBuckets, ...areaBuckets];
+  while (buckets.some(entries => entries.length)) addFrom(buckets);
   if (!ids.length) throw new Error('The recipe API is unavailable right now. Try again shortly.');
   const pantry = Array.isArray(options.pantry) ? options.pantry.map(normalize).slice(0,100) : [];
   const target = Math.min(42, Math.max(8, count * 3));
@@ -181,11 +182,13 @@ export async function makePlan(options = {}, fetcher = fetch) {
   }
   if (chosen.length < count && !options.allowPartial) throw new Error(`Only ${chosen.length} matching recipes were available. Remove a restriction and try again.`);
   const score = recipe => recipe.ingredients.filter(item => pantry.some(name => normalize(item.name).includes(name) || name.includes(normalize(item.name)))).length;
-  const ranked = shuffle(chosen).sort((a,b) => Number(previous.has(a.id))-Number(previous.has(b.id)) || score(b)-score(a));
-  const selected = [], usedCategories = new Set();
-  const hungarian = ranked.find(recipe => recipe.area === 'Hungarian');
-  if (hungarian) {selected.push(hungarian);usedCategories.add(hungarian.category);}
-  for (const recipe of ranked) if (!selected.includes(recipe) && !usedCategories.has(recipe.category)) { selected.push(recipe);usedCategories.add(recipe.category);if(selected.length===count)break; }
+  const areaScore = recipe => recipe.area === 'Hungarian' ? 3 : centralEuropeanAreas.has(recipe.area) ? 2 : europeanAreas.has(recipe.area) ? 1 : 0;
+  const ranked = shuffle(chosen).sort((a,b) => Number(previous.has(a.id))-Number(previous.has(b.id)) || areaScore(b)-areaScore(a) || score(b)-score(a));
+  const selected = [], categoryCounts = new Map();
+  for (const recipe of ranked) if ((categoryCounts.get(recipe.category) || 0) < 2) {
+    selected.push(recipe); categoryCounts.set(recipe.category, (categoryCounts.get(recipe.category) || 0) + 1);
+    if (selected.length === count) break;
+  }
   for (const recipe of ranked) if (selected.length<count && !selected.includes(recipe)) selected.push(recipe);
   return shuffle(selected);
 }
