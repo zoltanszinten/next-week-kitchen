@@ -36,8 +36,8 @@ dialog{width:min(720px,calc(100vw - 30px));max-height:calc(100vh - 34px);border:
 @media(max-width:520px){.candidate-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.candidate-card .meal-actions button{padding:0 5px!important}.recipe-toolbar{display:flex;align-items:flex-start}.selection-count{white-space:normal}}
 .meal-meta{display:block;line-height:1.45}.meal-meta span{display:block;margin-top:4px}
 @media(max-width:520px){.candidate-grid{grid-template-columns:1fr}}
-.candidate-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
-.candidate-card .meal-visual{height:auto;aspect-ratio:1}
+.candidate-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr))}
+.candidate-card .meal-visual{height:auto;aspect-ratio:3/2}
 @media(max-width:520px){.candidate-grid{grid-template-columns:1fr}}
 @media print{.topbar,.home-hero,.home-menu,.home-empty,#wizardView,.shopping-actions,dialog,.toast{display:none!important}#homeView,#homeShopping{display:block!important;margin:0!important}.home-shopping .section-heading{margin-bottom:16px}.shopping-list{display:block}.shop-category{break-inside:avoid;border:0}body{background:#fff}}
 
