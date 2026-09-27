@@ -29,22 +29,36 @@ export function ingredientsOf(raw) {
 // TheMealDB has no nutrition field. These coarse values support an explicitly rough estimate.
 const kcal100 = [
   [/oil|butter|ghee|margarine/i, 800], [/sugar|honey|syrup|jam/i, 350],
+  [/fish sauce|soy sauce|worcester|vinegar|stock|broth|water/i, 15],
   [/flour|rice|pasta|noodle|couscous|oat|bread|tortilla/i, 350],
   [/cheese|feta|parmesan/i, 330], [/cream|coconut milk/i, 230],
-  [/beef|lamb|pork|bacon|sausage|mince/i, 230], [/chicken|turkey|fish|salmon|tuna|prawn|shrimp/i, 150],
+  [/beef|lamb|pork|bacon|sausage|mince|ham/i, 230], [/chicken|turkey|fish|salmon|tuna|prawn|shrimp/i, 150],
   [/bean|lentil|chickpea/i, 120], [/egg/i, 143], [/milk|yogurt|yoghurt/i, 65],
   [/potato|sweet potato/i, 85], [/nut|seed|peanut/i, 550],
-  [/tomato|onion|garlic|carrot|pepper|mushroom|spinach|broccoli|courgette|zucchini|lemon|lime|cucumber|lettuce|celery|aubergine|eggplant|cabbage|vegetable|herb|parsley|coriander/i, 40],
-  [/salt|water|stock|vinegar|spice|paprika|cumin|curry|oregano|pepper/i, 10]
+  [/tomato|onion|garlic|carrot|pepper|mushroom|spinach|broccoli|courgette|zucchini|lemon|lime|cucumber|lettuce|celery|aubergine|eggplant|cabbage|vegetable|herb|parsley|coriander|fennel|ginger|chilli|chili/i, 40],
+  [/salt|spice|paprika|cumin|curry|oregano|anise|clove|cinnamon|bay leaf/i, 10]
 ];
 
+function typicalGrams(name) {
+  if (/salt|spice|paprika|cumin|curry|oregano|anise|clove|cinnamon|bay leaf|peppercorn/i.test(name)) return 3;
+  if (/oil|butter|ghee|sugar|honey|syrup|sauce|paste/i.test(name)) return 15;
+  if (/herb|parsley|coriander|basil|mint|thyme|rosemary|garlic/i.test(name)) return 12;
+  if (/rice|pasta|noodle|flour|oat|couscous/i.test(name)) return 100;
+  if (/beef|lamb|pork|chicken|turkey|fish|salmon|tuna|prawn|shrimp/i.test(name)) return 180;
+  if (/stock|broth|water|milk|cream/i.test(name)) return 250;
+  if (/egg/i.test(name)) return 55;
+  return 100;
+}
+
 function amountGrams(measure, name) {
-  const text = normalize(measure).replace(/½/g,' 1/2').replace(/¼/g,' 1/4').replace(/¾/g,' 3/4');
-  const match = text.match(/^(\d+(?:\.\d+)?)(?:\s+(\d+)\/(\d+))?|^(\d+)\/(\d+)/);
+  const text = normalize(String(measure).replace(/½/g,' 1/2').replace(/¼/g,' 1/4').replace(/¾/g,' 3/4')).trim();
+  const match = text.match(/^(?:(\d+)\/(\d+)|(\d+(?:\.\d+)?)(?:\s+(\d+)\/(\d+))?)/);
   if (!match) return null;
-  const number = match[4] ? Number(match[4])/Number(match[5]) : Number(match[1]) + (match[2] ? Number(match[2])/Number(match[3]) : 0);
+  const number = match[1] ? Number(match[1])/Number(match[2]) : Number(match[3]) + (match[4] ? Number(match[4])/Number(match[5]) : 0);
   const unit = text.slice(match[0].length).trim();
   if (/^kg\b/.test(unit)) return number * 1000;
+  if (/^(?:lb|lbs|pound|pounds)\b/.test(unit)) return number * 454;
+  if (/^(?:oz|ounce|ounces)\b/.test(unit)) return number * 28;
   if (/^(?:g|gram|grams)\b/.test(unit)) return number;
   if (/^ml\b/.test(unit)) return number;
   if (/^(?:l|litre|liter|litres|liters)\b/.test(unit)) return number * 1000;
@@ -58,20 +72,33 @@ function amountGrams(measure, name) {
   if (/clove/i.test(text)) return number * 5;
   if (/slice/i.test(text)) return number * 30;
   if (/can|tin/i.test(text)) return number * 400;
+  if (/sprig/i.test(unit)) return number * 4;
+  if (/stalk/i.test(unit)) return number * 40;
+  if (/bunch/i.test(unit)) return number * 60;
+  if (/handful/i.test(unit)) return number * 30;
   if (/pinch|dash/i.test(text)) return number * 1;
-  if (/\d/.test(text) && text.length < 18) return number * (/onion|tomato|potato|carrot|lemon|pepper/i.test(name) ? 110 : 100);
+  if (/\d/.test(text) && text.length < 40) return number * typicalGrams(name);
   return null;
 }
 
 export function estimateKcal(ingredients) {
-  let total = 0, known = 0;
+  let total = 0, measured = 0;
   for (const item of ingredients) {
     const row = kcal100.find(([pattern]) => pattern.test(item.name));
     const grams = amountGrams(item.measure, item.name);
-    if (row && grams !== null) { total += row[1] * grams / 100; known++; }
+    if (grams !== null && (row?.[1] ?? 100) > 65 && grams >= 20) measured++;
+    total += (row?.[1] ?? 100) * (grams ?? typicalGrams(item.name)) / 100;
   }
-  const coverage = ingredients.length ? known / ingredients.length : 0;
-  return coverage >= 0.65 && total < 12000 ? Math.round(total / 4 / 25) * 25 : null;
+  return measured && total < 12000 ? Math.round(total / 4 / 25) * 25 : null;
+}
+
+export function addMissingEstimates(saved) {
+  if (!saved?.plan || !Array.isArray(saved.plan.recipes)) return saved;
+  return { ...saved, plan: { ...saved.plan, recipes: saved.plan.recipes.map(recipe => {
+    if (!recipe || (recipe.kcal !== null && recipe.kcal !== undefined) || !Array.isArray(recipe.ingredients)) return recipe;
+    const kcal = estimateKcal(recipe.ingredients);
+    return kcal === null ? recipe : { ...recipe, kcal };
+  }) } };
 }
 
 export function recipeFromMeal(raw) {

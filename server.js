@@ -3,7 +3,7 @@ import { readFile, writeFile, rename, mkdir, rm } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { ingredientNames, makePlan } from './meal-data.js';
+import { addMissingEstimates, ingredientNames, makePlan } from './meal-data.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC = join(ROOT, 'public');
@@ -111,7 +111,7 @@ export function createAppServer({ ingredients = ingredientNames, plan = makePlan
       if (!hostMatch || !allowedHosts.has(hostMatch[1]) || (lan && !privateIpv4(request.socket.remoteAddress || ''))) throw new HttpError(403, 'Local network requests only.');
       const url = new URL(request.url, `http://${host}`);
       if (url.pathname.startsWith('/api/')) {
-        if (url.pathname === '/api/week' && request.method === 'GET') return sendJson(response, 200, await weekStore.read());
+        if (url.pathname === '/api/week' && request.method === 'GET') return sendJson(response, 200, addMissingEstimates(await weekStore.read()));
         if (url.pathname === '/api/week' && request.method === 'PUT') {
           if (request.headers.origin && request.headers.origin !== `http://${host}`) throw new HttpError(403, 'Cross-site requests are blocked.');
           if (!String(request.headers['content-type'] || '').startsWith('application/json')) throw new HttpError(415, 'Send a JSON week.');

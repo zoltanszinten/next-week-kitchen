@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateKcal, recipeFromMeal, matchesPreferences, makePlan } from '../meal-data.js';
+import { addMissingEstimates, estimateKcal, recipeFromMeal, matchesPreferences, makePlan } from '../meal-data.js';
 
 const meal = (id, ingredients, category='Vegetarian') => ({idMeal:String(id),strMeal:`Meal ${id}`,strCategory:category,strInstructions:'Cook everything.',...Object.fromEntries(ingredients.flatMap(([name,measure],i)=>[[`strIngredient${i+1}`,name],[`strMeasure${i+1}`,measure]]))});
 
@@ -22,6 +22,22 @@ test('nutrition stays approximate and attached units parse correctly', () => {
   assert.equal(matchesPreferences(recipe,{avoid:['chicken']}),true);
   assert.equal(matchesPreferences({...recipe,title:'Red onion pickle'},{avoid:[]}),false);
   assert.equal(matchesPreferences({...recipe,ingredients:[...recipe.ingredients,{name:'Eggplant',measure:'1'}]},{avoid:['egg']}),true);
+});
+
+test('informal measures yield a rough estimate and saved missing estimates are refreshed', () => {
+  const ingredients=[
+    {name:'Rice',measure:'½ cup'}, {name:'Chicken',measure:'1 lb'},
+    {name:'Olive Oil',measure:'2 tbsp'}, {name:'Ginger',measure:'a piece'},
+    {name:'Coriander',measure:'a handful'}, {name:'Fish Sauce',measure:'1 tbsp'}
+  ];
+  const kcal=estimateKcal(ingredients);
+  assert(kcal>=250 && kcal<=500,`Unexpected rough estimate: ${kcal}`);
+  assert.equal(estimateKcal(ingredients.map(item=>({...item,measure:'some'}))),null);
+  const saved={revision:2,plan:{recipes:[{id:'1',ingredients,kcal:null},{id:'2',ingredients,kcal:400}]}};
+  const refreshed=addMissingEstimates(saved);
+  assert.equal(refreshed.plan.recipes[0].kcal,kcal);
+  assert.equal(refreshed.plan.recipes[1].kcal,400);
+  assert.equal(saved.plan.recipes[0].kcal,null);
 });
 
 
