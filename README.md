@@ -1,5 +1,9 @@
 # Next Week Kitchen — localhost edition
 
+## Shared Household Shopping integration
+
+On the cloud hub, the saved-week shopping section has an **Add ingredients to shopping list** button for the selected dinners. A saved recipe also has its own button in the recipe view. Both open a review dialog so ingredients can be deselected before import. The hub Worker reads the saved week, scales quantities for the saved servings, and combines only compatible units. Imports go to the shared Groceries list at `/shopping/`; source recipe and week details remain on the imported items. A changed week requires a fresh review. The localhost edition does not connect to cloud shopping data.
+
 A JavaScript web app for planning one to seven dinners and building an ingredient shopping list. It runs on your PC at **http://127.0.0.1:3000**. There are no npm packages, API keys, hosting charges, or paid recipe subscriptions.
 
 ## Start it
