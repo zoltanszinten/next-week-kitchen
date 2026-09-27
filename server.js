@@ -51,7 +51,7 @@ function validWeek(plan) {
   return plan && typeof plan === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(plan.week) &&
     Number.isInteger(plan.dinnerCount) && plan.dinnerCount >= 1 && plan.dinnerCount <= 7 &&
     Number.isInteger(plan.servings) && plan.servings >= 1 && plan.servings <= 6 &&
-    ['all','vegetarian','no-fish'].includes(plan.diet) && (plan.lighter === undefined || typeof plan.lighter === 'boolean') &&
+    (plan.diet === undefined || ['all','vegetarian','no-fish'].includes(plan.diet)) && (plan.lighter === undefined || typeof plan.lighter === 'boolean') &&
     typeof plan.empty === 'boolean' && shortStrings(plan.avoid, 30) && shortStrings(plan.pantry, 100) &&
     (plan.shoppingRecipeIds === undefined || (Array.isArray(plan.shoppingRecipeIds) && plan.shoppingRecipeIds.length <= 7 && Array.isArray(plan.recipes) && plan.shoppingRecipeIds.every(id => typeof id === 'string' && plan.recipes.some(recipe => recipe?.id === id)) && new Set(plan.shoppingRecipeIds).size === plan.shoppingRecipeIds.length)) &&
     plan.checked && typeof plan.checked === 'object' && !Array.isArray(plan.checked) &&
@@ -124,7 +124,7 @@ export function createAppServer({ ingredients = ingredientNames, plan = makePlan
           if (request.headers.origin && request.headers.origin !== `http://${host}`) throw new HttpError(403, 'Cross-site requests are blocked.');
           if (!String(request.headers['content-type'] || '').startsWith('application/json')) throw new HttpError(415, 'Send JSON preferences.');
           const payload = await readBody(request);
-          if (!payload || !['all','vegetarian','no-fish'].includes(payload.diet) || !Array.isArray(payload.avoid) || payload.avoid.length > 30 || payload.avoid.some(x => typeof x !== 'string' || x.length > 80) || (payload.count !== undefined && (!Number.isInteger(payload.count) || payload.count < 1 || payload.count > 14)) || (payload.exclude !== undefined && (!Array.isArray(payload.exclude) || payload.exclude.length > 100 || payload.exclude.some(x => typeof x !== 'string' || x.length > 30)))) throw new HttpError(400, 'Check the planning preferences.');
+        if (!payload || (payload.diet !== undefined && !['all','vegetarian','no-fish'].includes(payload.diet)) || !Array.isArray(payload.avoid) || payload.avoid.length > 30 || payload.avoid.some(x => typeof x !== 'string' || x.length > 80) || (payload.count !== undefined && (!Number.isInteger(payload.count) || payload.count < 1 || payload.count > 14)) || (payload.exclude !== undefined && (!Array.isArray(payload.exclude) || payload.exclude.length > 100 || payload.exclude.some(x => typeof x !== 'string' || x.length > 30)))) throw new HttpError(400, 'Check the planning preferences.');
           let recipes;
           try { recipes = await plan({ ...payload, allowPartial: true }); }
           catch (error) { throw new HttpError(502, error.message || 'Could not find matching recipes.'); }
