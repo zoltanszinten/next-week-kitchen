@@ -6,16 +6,17 @@
   <meta name="theme-color" content="#f5f1e8">
   <title>Next Week Kitchen</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="ui.css">
 </head>
-<body>
+<body class="ui-app ui-app--kitchen">
   <div class="shell" id="top">
     <header class="topbar">
-      <a class="brand" id="homeLogo" href="/" aria-label="Return to my week"><span class="brand-mark">✳</span><span>next week<span class="brand-light"> kitchen</span></span></a>
+      <a class="brand" id="homeLogo" href="/" aria-label="Return to my week"><span class="brand-mark ui-mark">✳</span><span>next week<span class="brand-light"> kitchen</span></span></a>
     </header>
 
     <main>
       <div id="homeView">
-        <section class="home-hero" aria-labelledby="homeTitle"><div><div class="eyebrow"><span class="eyebrow-line"></span> YOUR KITCHEN DASHBOARD</div><h1 id="homeTitle">Your week,<br><em>on the menu.</em></h1><p id="homeLead">Your saved dinners live here. When you’re ready for another week, we’ll plan it together.</p><div class="hero-actions"><button class="primary" id="startWizardBtn" type="button">Plan a new week <span>↗</span></button><button class="secondary" id="homeShopBtn" type="button" hidden>See what to buy <span>↓</span></button></div></div><div class="home-hero-illustration" aria-hidden="true"><span>🍅</span><span>🥬</span><span>🍋</span></div></section>
+        <section class="home-hero ui-hero ui-hero--light" aria-labelledby="homeTitle"><div><div class="eyebrow ui-kicker"><span class="eyebrow-line"></span> YOUR KITCHEN DASHBOARD</div><h1 class="ui-title" id="homeTitle">Your week,<br><em>on the menu.</em></h1><p id="homeLead">Your saved dinners live here. When you’re ready for another week, we’ll plan it together.</p><div class="hero-actions"><button class="primary ui-action ui-action--primary" id="startWizardBtn" type="button">Plan a new week <span>↗</span></button><button class="secondary ui-action ui-action--outline" id="homeShopBtn" type="button" hidden>See what to buy <span>↓</span></button></div></div><div class="home-hero-illustration" aria-hidden="true"><span>🍅</span><span>🥬</span><span>🍋</span></div></section>
         <section class="home-menu" id="homePlan" aria-labelledby="homeMenuTitle" hidden><div class="section-heading"><div><div class="section-kicker">THIS WEEK'S SELECTION</div><h2 id="homeMenuTitle">Your dinners</h2><p id="homeRange"></p></div><div class="heading-aside" id="homeSummary"></div></div><p class="home-select-note" id="homeSelectNote">Tap dinners to include them in the shopping list. Tap again to remove them.</p><div class="plan-grid" id="homeGrid"></div></section>
         <section class="home-shopping" id="homeShopping" aria-labelledby="shoppingTitle" hidden><div class="section-heading shopping-heading"><div><div class="section-kicker">YOUR SHOPPING LIST</div><h2 id="shoppingTitle">What to buy</h2><p id="shoppingIntro"></p></div><div class="shopping-actions"><button class="primary" id="addPeriodBtn" type="button">Add ingredients to shopping list ↗</button></div></div><div id="shoppingList" class="shopping-list"></div></section>
         <section class="home-empty" id="homeEmpty"><span class="empty-spark">✳</span><h2>A week of dinners is one plan away.</h2><p>Choose your preferences, show us what is at home, then pick the dinners you want.</p><button class="secondary" id="emptyStartBtn" type="button">Start planning <span>↗</span></button></section>
