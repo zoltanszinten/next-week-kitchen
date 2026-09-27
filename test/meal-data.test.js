@@ -42,3 +42,36 @@ test('planning returns the requested number of dinners', async () => {
   assert.equal(refreshed.length,14);
   assert(refreshed.every(recipe=>!['1','2','3','4','5'].includes(recipe.id)));
 });
+
+test('a partial search stays within the Free Worker outbound request budget', async () => {
+  const names=Array.from({length:100},(_,i)=>({idMeal:String(i+1)}));
+  let calls=0;
+  const fetcher=async url=>{
+    calls++;
+    return {ok:true,json:async()=>url.includes('filter.php')?{meals:names}:{meals:[meal(new URL(url).searchParams.get('i'),[['Rice','200g'],['Tomato','2'],['Onion','1'],['Salt','1 tsp']])]}};
+  };
+  const result=await makePlan({diet:'all',count:6,allowPartial:true},fetcher);
+  assert.deepEqual(result,[]);
+  assert(calls<=44,`Expected at most 44 outbound calls, got ${calls}`);
+});
+
+test('unknown calories do not exclude a dinner unless lighter meals were requested', async () => {
+  const names=Array.from({length:10},(_,i)=>({idMeal:String(i+1)}));
+  const fetcher=async url=>({ok:true,json:async()=>url.includes('filter.php')?{meals:names}:{meals:[meal(new URL(url).searchParams.get('i'),[['Rice','some'],['Tomato','some'],['Onion','some'],['Carrot','some'],['Salt','some']])]}});
+  assert.equal((await makePlan({diet:'all',count:3},fetcher)).length,3);
+  assert.deepEqual(await makePlan({diet:'all',count:3,lighter:true,allowPartial:true},fetcher),[]);
+});
+
+test('an available Hungarian dinner is checked early and included', async () => {
+  const names=Array.from({length:100},(_,i)=>({idMeal:String(i+1)}));
+  const fetcher=async url=>{
+    const path=new URL(url);
+    if(path.pathname.endsWith('filter.php'))return {ok:true,json:async()=>({meals:path.searchParams.get('a')==='Hungarian'?[{idMeal:'999'}]:names})};
+    const id=path.searchParams.get('i');
+    const raw=meal(id,[['Rice','200g'],['Tomato','2'],['Onion','1'],['Carrot','1'],['Salt','1 tsp']]);
+    if(id==='999')raw.strArea='Hungarian';
+    return {ok:true,json:async()=>({meals:[raw]})};
+  };
+  const result=await makePlan({diet:'all',count:6},fetcher);
+  assert(result.some(recipe=>recipe.id==='999'));
+});

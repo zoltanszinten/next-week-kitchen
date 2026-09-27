@@ -123,8 +123,14 @@ export async function makePlan(options = {}, fetcher = fetch) {
     ...pickedCategories.map(async category => (await json(`filter.php?c=${encodeURIComponent(category)}`, fetcher)).meals || []),
     (async () => (await json('filter.php?a=Hungarian', fetcher)).meals || [])()
   ]);
-  const buckets = listings.map(result => shuffle(result.status === 'fulfilled' ? result.value.map(row => String(row.idMeal)) : []));
+  const hungarianListing = listings.at(-1);
+  const hungarianIds = shuffle(hungarianListing.status === 'fulfilled' ? hungarianListing.value.map(row => String(row.idMeal)) : []);
+  const buckets = listings.slice(0, -1).map(result => shuffle(result.status === 'fulfilled' ? result.value.map(row => String(row.idMeal)) : []));
   const ids = [], seenIds = new Set();
+  for (const id of hungarianIds.splice(0, Math.min(8, count))) {
+    if (id && !seenIds.has(id)) { ids.push(id); seenIds.add(id); }
+  }
+  buckets.push(hungarianIds);
   while (buckets.some(bucket => bucket.length)) for (const bucket of buckets) {
     const id = bucket.shift();
     if (id && !seenIds.has(id)) { ids.push(id); seenIds.add(id); }
@@ -133,20 +139,21 @@ export async function makePlan(options = {}, fetcher = fetch) {
   const pantry = Array.isArray(options.pantry) ? options.pantry.map(normalize).slice(0,100) : [];
   const target = Math.min(42, Math.max(8, count * 3));
   const chosen = [], seen = new Set();
-  for (let start = 0; start < ids.length && chosen.length < target && start < 140; start += 8) {
-    const group = ids.slice(start, start + 8);
+  // Free Workers allow 50 external subrequests per invocation. Listings use at
+  // most eight, leaving room for these lookups and possible provider redirects.
+  for (let start = 0; start < ids.length && chosen.length < target && start < 36; start += 6) {
+    const group = ids.slice(start, Math.min(start + 6, 36));
     const details = await Promise.allSettled(group.map(async id => (await json(`lookup.php?i=${id}`, fetcher)).meals?.[0]));
     for (const result of details) {
       if (result.status !== 'fulfilled' || !result.value) continue;
       const recipe = recipeFromMeal(result.value);
       if (!recipe.title || !recipe.ingredients.length || seen.has(recipe.id) || exclude.has(recipe.id) || !matchesPreferences(recipe, { diet, avoid })) continue;
-      if (count === 1 && previous.has(recipe.id)) continue;
-      if (recipe.kcal === null || (options.lighter && recipe.kcal > 600)) continue;
+      if (options.lighter && (recipe.kcal === null || recipe.kcal > 600)) continue;
       seen.add(recipe.id); chosen.push(recipe);
       if (chosen.length === target) break;
     }
   }
-  if (chosen.length < count) throw new Error(`Only ${chosen.length} matching recipes were available. Remove a restriction and try again.`);
+  if (chosen.length < count && !options.allowPartial) throw new Error(`Only ${chosen.length} matching recipes were available. Remove a restriction and try again.`);
   const score = recipe => recipe.ingredients.filter(item => pantry.some(name => normalize(item.name).includes(name) || name.includes(normalize(item.name)))).length;
   const ranked = shuffle(chosen).sort((a,b) => Number(previous.has(a.id))-Number(previous.has(b.id)) || score(b)-score(a));
   const selected = [], usedCategories = new Set();

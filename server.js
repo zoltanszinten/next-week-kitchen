@@ -126,7 +126,7 @@ export function createAppServer({ ingredients = ingredientNames, plan = makePlan
           const payload = await readBody(request);
           if (!payload || !['all','vegetarian','no-fish'].includes(payload.diet) || !Array.isArray(payload.avoid) || payload.avoid.length > 30 || payload.avoid.some(x => typeof x !== 'string' || x.length > 80) || (payload.count !== undefined && (!Number.isInteger(payload.count) || payload.count < 1 || payload.count > 14)) || (payload.exclude !== undefined && (!Array.isArray(payload.exclude) || payload.exclude.length > 100 || payload.exclude.some(x => typeof x !== 'string' || x.length > 30)))) throw new HttpError(400, 'Check the planning preferences.');
           let recipes;
-          try { recipes = await plan(payload); }
+          try { recipes = await plan({ ...payload, allowPartial: true }); }
           catch (error) { throw new HttpError(502, error.message || 'Could not find matching recipes.'); }
           return sendJson(response, 200, { recipes });
         }

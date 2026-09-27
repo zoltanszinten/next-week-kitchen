@@ -218,6 +218,7 @@
     const ideas=state.dinnerCount*2,initial=candidates.length!==ideas;
     const refreshPositions=initial?[]:candidates.map((recipe,i)=>selectedIds.includes(recipe.id)?-1:i).filter(i=>i!==-1);
     const needed=initial?ideas:refreshPositions.length;
+    if(!needed)return;
     loading=true;el.planError.hidden=true;el.planBtn.disabled=true;$('finishBtn').disabled=true;
     for(const button of el.grid.querySelectorAll('[data-toggle]'))button.disabled=true;
     if(initial)el.grid.innerHTML=`<div class="empty-plan">Finding ${ideas} recipe ideas from TheMealDB…</div>`;
@@ -226,12 +227,24 @@
       const previous=committed.recipes.map(recipe=>recipe.id);
       const currentIds=candidates.map(recipe=>recipe.id);
       const exclude=initial?[]:[...currentIds,...[...seenCandidateIds].filter(id=>!currentIds.includes(id)).slice(-(100-currentIds.length))];
-      const data=await api('/api/plan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({diet:state.diet,lighter:state.lighter,avoid:state.avoid,pantry:state.empty?[]:state.pantry,previous,exclude,count:needed})});
+      const recipes=[];
+      const maxAttempts=needed>8?4:3;
+      let attempts=0,lastError;
+      while(recipes.length<needed&&attempts<maxAttempts){
+        attempts++;
+        const blocked=new Set([...exclude,...recipes.map(recipe=>recipe.id)]);
+        try{
+          const data=await api('/api/plan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({diet:state.diet,lighter:state.lighter,avoid:state.avoid,pantry:state.empty?[]:state.pantry,previous,exclude:[...blocked].slice(-100),count:needed-recipes.length})});
+          if(!Array.isArray(data.recipes))throw new Error('The recipe service returned an invalid response.');
+          for(const recipe of data.recipes)if(recipe&&typeof recipe.id==='string'&&!blocked.has(recipe.id)&&!recipes.some(item=>item.id===recipe.id))recipes.push(recipe);
+        }catch(error){lastError=error;}
+        if(state!==draft||wizardStep===0||planRevision!==revision)return;
+      }
       if(state!==draft||wizardStep===0||planRevision!==revision)return;
-      if(!Array.isArray(data.recipes)||data.recipes.length!==needed)throw new Error('The recipe service returned too few ideas. Try refreshing again.');
-      if(initial)candidates=data.recipes;
-      else for(let i=0;i<refreshPositions.length;i++)candidates[refreshPositions[i]]=data.recipes[i];
-      for(const recipe of data.recipes)seenCandidateIds.add(recipe.id);
+      if(recipes.length!==needed)throw new Error(recipes.length===0&&lastError?lastError.message:`Found ${recipes.length} of ${needed} ideas after ${attempts} searches. Try fewer excluded ingredients or turn off Lighter dinners.`);
+      if(initial)candidates=recipes;
+      else for(let i=0;i<refreshPositions.length;i++)candidates[refreshPositions[i]]=recipes[i];
+      for(const recipe of recipes)seenCandidateIds.add(recipe.id);
       renderRecipes();showToast(initial?`${ideas} recipe ideas are ready. Choose ${state.dinnerCount}.`:'Unselected recipes refreshed.');
     } catch(error) {if(state===draft&&wizardStep!==0&&planRevision===revision){renderRecipes();el.planError.textContent=error.message||'Could not get recipes.';el.planError.hidden=false;}}
     finally {loading=false;el.planBtn.disabled=false;$('finishBtn').disabled=selectedIds.length!==state.dinnerCount;if(state===draft&&wizardStep===3&&planRevision!==revision&&candidates.length!==state.dinnerCount*2)generate();}
