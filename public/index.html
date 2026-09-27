@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f1e8">
+  <title>Next Week Kitchen</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell" id="top">
+    <header class="topbar">
+      <a class="brand" id="homeLogo" href="/" aria-label="Return to my week"><span class="brand-mark">✳</span><span>next week<span class="brand-light"> kitchen</span></span></a>
+    </header>
+
+    <main>
+      <div id="homeView">
+        <section class="home-hero" aria-labelledby="homeTitle"><div><div class="eyebrow"><span class="eyebrow-line"></span> YOUR KITCHEN DASHBOARD</div><h1 id="homeTitle">Your week,<br><em>on the menu.</em></h1><p id="homeLead">Your saved dinners live here. When you’re ready for another week, we’ll plan it together.</p><div class="hero-actions"><button class="primary" id="startWizardBtn" type="button">Plan a new week <span>↗</span></button><button class="secondary" id="homeShopBtn" type="button" hidden>See what to buy <span>↓</span></button></div></div><div class="home-hero-illustration" aria-hidden="true"><span>🍅</span><span>🥬</span><span>🍋</span></div></section>
+        <section class="home-menu" id="homePlan" aria-labelledby="homeMenuTitle" hidden><div class="section-heading"><div><div class="section-kicker">THIS WEEK'S SELECTION</div><h2 id="homeMenuTitle">Your dinners</h2><p id="homeRange"></p></div><div class="heading-aside" id="homeSummary"></div></div><p class="home-select-note" id="homeSelectNote">Tap dinners to include them in the shopping list. Tap again to remove them.</p><div class="plan-grid" id="homeGrid"></div></section>
+        <section class="home-shopping" id="homeShopping" aria-labelledby="shoppingTitle" hidden><div class="section-heading shopping-heading"><div><div class="section-kicker">YOUR SHOPPING LIST</div><h2 id="shoppingTitle">What to buy</h2><p id="shoppingIntro"></p></div><div class="shopping-actions"><button class="small-button" id="copyBtn" type="button">Copy list</button><button class="small-button" id="printBtn" type="button">Print</button></div></div><div id="shoppingList" class="shopping-list"></div></section>
+        <section class="home-empty" id="homeEmpty"><span class="empty-spark">✳</span><h2>A week of dinners is one plan away.</h2><p>Choose your preferences, show us what is at home, then pick the dinners you want.</p><button class="secondary" id="emptyStartBtn" type="button">Start planning <span>↗</span></button></section>
+      </div>
+
+      <div id="wizardView" hidden>
+        <section class="wizard-header"><div><div class="section-kicker">PLAN A NEW WEEK</div><h1>Let’s make next week easy.</h1><p>Three steps from your preferences to your dinners.</p></div></section>
+        <nav class="wizard-progress" id="wizardProgress" aria-label="Planning steps"><button type="button" data-go-step="1"><span>1</span> Preferences</button><button type="button" data-go-step="2"><span>2</span> Your kitchen</button><button type="button" data-go-step="3"><span>3</span> Dinners</button></nav>
+
+        <section class="wizard-step" id="step1" aria-labelledby="preferencesTitle"><div class="section-heading"><div><div class="section-kicker">STEP 01 / THE BASICS</div><h2 id="preferencesTitle">What should we cook?</h2><p>Set the table and tell us what to leave out.</p></div></div><div class="controls" aria-label="Plan preferences"><div class="control-group"><label for="dinnerCount">How many dinners?</label><select id="dinnerCount"><option value="1">1 dinner</option><option value="2">2 dinners</option><option value="3">3 dinners</option><option value="4">4 dinners</option><option value="5">5 dinners</option><option value="6">6 dinners</option><option value="7">7 dinners</option></select></div><div class="control-group"><label for="servings">Cooking for</label><select id="servings"><option value="1">1 person</option><option value="2">2 people</option><option value="3">3 people</option><option value="4">4 people</option><option value="5">5 people</option><option value="6">6 people</option></select></div><div class="control-group"><label for="diet">On the menu</label><select id="diet"><option value="all">A little of everything</option><option value="vegetarian">Vegetarian</option><option value="no-fish">No fish</option></select></div><div class="control-group"><label for="lighter">Calorie preference</label><select id="lighter"><option value="no">All dinners</option><option value="yes">Lighter dinners (roughly under 600 kcal)</option></select></div><div class="control-group avoid-control"><label for="avoidSearch">Ingredients I don't want</label><div class="avoid-entry"><input id="avoidSearch" list="avoidOptions" autocomplete="off" placeholder="Search an ingredient…" aria-label="Ingredient to avoid"><datalist id="avoidOptions"></datalist><button id="addAvoidBtn" class="small-button" type="button">Avoid</button></div><div id="avoidItems" class="avoid-items" aria-live="polite"></div></div></div><p class="step-note">We check excluded ingredients against each recipe before showing it.</p><div class="step-actions"><button class="primary" id="toKitchenBtn" type="button">Next: your kitchen <span>→</span></button></div></section>
+
+        <section class="wizard-step" id="step2" aria-labelledby="pantryTitle" hidden><div class="section-heading"><div><div class="section-kicker">STEP 02 / WHAT YOU HAVE</div><h2 id="pantryTitle">Fridge and pantry, together.</h2><p>Add ingredients you already have. Everything goes into one at-home list.</p></div></div><div class="kitchen-card"><label class="empty-kitchen-option" for="emptyKitchen"><input id="emptyKitchen" type="checkbox"><span><strong>My fridge and pantry are empty</strong><small>Start from scratch and add everything to the shopping list.</small></span></label><div class="kitchen-entry-grid"><div class="kitchen-entry"><h3>Type what you have</h3><p>Search the ingredient list or type your own.</p><div class="pantry-add"><input id="pantrySearch" list="pantryOptions" placeholder="Try potato, milk, chicken…" aria-label="Ingredient to add"><datalist id="pantryOptions"></datalist><button id="addPantryBtn" class="small-button" type="button">Add</button></div></div></div><div class="merged-list"><h3>Already at home</h3><div id="pantryItems" class="pantry-items"></div></div></div><div class="step-actions"><button class="secondary" id="backPrefsBtn" type="button">← Preferences</button><button class="primary" id="toRecipesBtn" type="button">Next: pick dinners <span>→</span></button></div></section>
+
+        <section class="wizard-step" id="step3" aria-labelledby="planTitle" hidden><div class="section-heading"><div><div class="section-kicker">STEP 03 / THE MENU</div><h2 id="planTitle">Choose next week’s dinners</h2><p id="weekRange"></p></div><div class="heading-aside">Click a recipe card to choose it. Your selection becomes Monday onward, in the order you choose them.</div></div><div class="recipe-toolbar"><p id="recipeCountNote">Choose your dinners from the recipe ideas below.</p><strong id="selectionCount" class="selection-count" aria-live="polite"></strong></div><div class="plan-grid candidate-grid" id="planGrid"></div><div class="refresh-row"><button class="primary refresh-button" id="generateBtn" type="button">↻ Refresh unselected recipes</button><p>Selected dinners stay in place when you refresh.</p></div><div class="inline-error" id="planError" role="alert" hidden></div><div class="step-actions"><button class="secondary" id="backKitchenBtn" type="button">← Your kitchen</button><button class="primary" id="finishBtn" type="button">Save dinners and see what to buy <span>↗</span></button></div></section>
+      </div>
+    </main>
+
+  </div>
+  <dialog id="recipeDialog" aria-labelledby="recipeTitle"><button class="modal-close" id="closeDialog" aria-label="Close recipe">×</button><div id="recipeContent"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
