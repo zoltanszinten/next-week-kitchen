@@ -261,14 +261,14 @@
     try {
       const path=recipeId?`/api/shopping-preview?recipeId=${encodeURIComponent(recipeId)}`:'/api/shopping-preview?period=selected';
       importPreview=await api(path);
-      $('importItems').innerHTML=importPreview.ingredients.map((item,index)=>`<label class="import-row"><input type="checkbox" data-import-index="${index}" checked><span>${esc(item.name)}<small>${esc(item.quantity===null?item.note:`${item.quantity} ${item.unit}`)} · ${esc(item.sources.map(source=>source.recipeTitle).join(', '))}</small></span></label>`).join('')||'<p>No ingredients in this selection.</p>';
+      $('importItems').innerHTML=importPreview.ingredients.length?`<div class="shop-category shop-full import-list"><h3>Ingredients <span class="shop-count">${importPreview.ingredients.length} items</span></h3>${importPreview.ingredients.map((item,index)=>`<label class="shop-row import-row"><input type="checkbox" data-import-index="${index}"><span class="item-name">${esc(item.name)}<small class="shop-measure">${esc(item.quantity===null?item.note:`${item.quantity} ${item.unit}`)} · ${esc(item.sources.map(source=>source.recipeTitle).join(', '))}</small></span></label>`).join('')}</div>`:'<p class="import-empty">No ingredients in this selection.</p>';
       $('importStatus').textContent='';
     } catch(error) {importPreview=null;$('importStatus').textContent=error.message||'Could not load ingredients.';}
   }
   async function addReviewedIngredients(event) {
     event.preventDefault();if(!importPreview)return;
-    const selected=[...$('importItems').querySelectorAll('[data-import-index]:checked')].map(input=>Number(input.dataset.importIndex));
-    if(!selected.length){$('importStatus').textContent='Select at least one ingredient.';return;}
+    const selected=[...$('importItems').querySelectorAll('[data-import-index]:not(:checked)')].map(input=>Number(input.dataset.importIndex));
+    if(!selected.length){$('importStatus').textContent='All ingredients are marked as already at home. Uncheck an ingredient to add it.';return;}
     $('confirmImport').disabled=true;$('importStatus').textContent='Saving to shared list…';
     try {
       await api('/shopping/'+'api/change',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'import',weekRevision:importPreview.revision,recipeIds:importPreview.recipeIds,selected})});
