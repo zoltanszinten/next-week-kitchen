@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createAppServer, createWeekStore } from '../server.js';
+import { createAppServer, createRecipeStore, createWeekStore } from '../server.js';
 
 test('local server serves planning and rejects retired photo endpoints', async () => {
   const server = createAppServer();
@@ -69,4 +69,26 @@ test('shared week persists to JSON and rejects stale device saves', async () => 
     server.close();await once(server,'close');
     await rm(directory,{recursive:true,force:true});
   }
+});
+
+test('local personal recipe collection supports import, edit, and delete', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'kitchen-recipes-'));
+  const server = createAppServer({ recipeStore: createRecipeStore(join(folder, 'recipes.json')),
+    importRecipe: async url => ({ title: 'Imported', source: url, baseServings: 4, ingredients: [{ name: 'Tomato', measure: '2' }] }) });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const send = (path, method, value) => fetch(`${base}${path}`, { method, headers: { origin: base, 'content-type': 'application/json' }, body: JSON.stringify(value) });
+  try {
+    assert.deepEqual(await (await fetch(`${base}/api/recipes`)).json(), { recipes: [] });
+    assert.equal((await send('/api/recipes/import', 'POST', { url: 'https://example.com/pasta' })).status, 200);
+    const input = { title: 'Tomato pasta', baseServings: 2, ingredients: [{ name: 'Tomato', measure: '2' }] };
+    const created = await send('/api/recipes', 'POST', input);
+    assert.equal(created.status, 201);
+    const id = (await created.json()).recipe.id;
+    assert.equal((await (await fetch(`${base}/api/recipes`)).json()).recipes[0].title, 'Tomato pasta');
+    assert.equal((await send(`/api/recipes/${id}`, 'PUT', { ...input, title: 'Updated pasta' })).status, 200);
+    assert.equal((await (await fetch(`${base}/api/recipes`)).json()).recipes[0].title, 'Updated pasta');
+    assert.equal((await send(`/api/recipes/${id}`, 'DELETE')).status, 200);
+    assert.deepEqual(await (await fetch(`${base}/api/recipes`)).json(), { recipes: [] });
+  } finally { server.close(); await once(server, 'close'); await rm(folder, { recursive: true, force: true }); }
 });

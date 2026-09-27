@@ -25,6 +25,8 @@
   let loading = false;
   let planRevision = 0;
   let candidates = [];
+  let myRecipes = [];
+  let editingRecipeId = null;
   let selectedIds = [];
   let seenCandidateIds = new Set();
   let toastTimer;
@@ -119,8 +121,10 @@
   }
   function atHome(name) {return !state.empty&&state.pantry.some(item=>norm(item)===norm(name)||norm(item).replace(/s$/,'')===norm(name).replace(/s$/,''));}
   function pantryCount(recipe) {return recipe.ingredients.filter(item=>atHome(item.name)).length;}
-  function scaleMeasure(measure) {
-    const ratio=state.servings/4,value=String(measure||'').trim();if(ratio===1||!value)return value;
+  function scaleMeasure(measure,baseServings=4) {
+    const ratio=state.servings/baseServings,value=String(measure||'').trim();if(ratio===1||!value)return value;
+    const range=value.match(/^(\d+(?:[.,]\d+)?)\s*[-–]\s*(\d+(?:[.,]\d+)?)(\s*.*)$/);
+    if(range)return `${Number((Number(range[1].replace(',','.'))*ratio).toFixed(2))}–${Number((Number(range[2].replace(',','.'))*ratio).toFixed(2))}${range[3]}`;
     const match=value.match(/^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?|½|¼|¾)(\s*.*)$/);
     if(!match)return `${value} (recipe amount)`;
     const n=match[1]==='½'?.5:match[1]==='¼'?.25:match[1]==='¾'?.75:match[1].includes(' ')?Number(match[1].split(' ')[0])+Number(match[1].split(' ')[1].split('/')[0])/Number(match[1].split(' ')[1].split('/')[1]):match[1].includes('/')?Number(match[1].split('/')[0])/Number(match[1].split('/')[1]):Number(match[1]);
@@ -157,6 +161,16 @@
     el.grid.dataset.count=String(ideas);
     el.grid.innerHTML=candidates.length===ideas?candidateCards():`<div class="empty-plan">Finding ${ideas} recipe ideas that fit your preferences and kitchen.</div>`;
     el.planBtn.textContent=candidates.length===ideas?'↻ Refresh unselected recipes':`Find ${ideas} recipe ideas ↻`;
+    renderMyRecipes();
+  }
+  function syncSelectedRecipes() {state.recipes=selectedIds.map(id=>candidates.find(item=>item.id===id)||myRecipes.find(item=>item.id===id)).filter(Boolean);}
+  function toggleMyRecipe(id) {
+    const recipe=myRecipes.find(item=>item.id===id);if(!recipe)return;
+    const index=selectedIds.indexOf(id);
+    if(index>=0)selectedIds.splice(index,1);
+    else if(selectedIds.length<state.dinnerCount)selectedIds.push(id);
+    else {showToast(`You have chosen ${state.dinnerCount} dinners. Remove one before choosing another.`);return;}
+    syncSelectedRecipes();state.checked={};renderRecipes();
   }
   function toggleCandidate(index) {
     if(loading)return;
@@ -165,11 +179,11 @@
     if(selectedIndex!==-1)selectedIds.splice(selectedIndex,1);
     else if(selectedIds.length<state.dinnerCount)selectedIds.push(recipe.id);
     else {showToast(`You have chosen ${state.dinnerCount} dinners. Remove one before choosing another.`);return;}
-    state.recipes=selectedIds.map(id=>candidates.find(item=>item.id===id)).filter(Boolean);
+    syncSelectedRecipes();
     state.checked={};renderRecipes();
   }
   function aggregate() {
-    const map=new Map();for(const recipe of selectedShoppingRecipes())for(const item of recipe.ingredients){const key=norm(item.name);if(!key)continue;const row=map.get(key)||{name:item.name,measures:[]};row.measures.push(`${scaleMeasure(item.measure)||'amount as needed'} (${recipe.title})`);map.set(key,row);}
+    const map=new Map();for(const recipe of selectedShoppingRecipes())for(const item of recipe.ingredients){const key=norm(item.name);if(!key)continue;const row=map.get(key)||{name:item.name,measures:[]};row.measures.push(`${scaleMeasure(item.measure,recipe.baseServings||4)||'amount as needed'} (${recipe.title})`);map.set(key,row);}
     return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name));
   }
   function renderShopping() {
@@ -250,7 +264,8 @@
   }
   function openRecipe(recipe, savedRecipe=false) {
     if(!recipe)return;
-    el.content.innerHTML=`<div class="modal-header"><div class="section-kicker">THEMEALDB RECIPE</div><h2 id="recipeTitle">${esc(recipe.title)}</h2><p>${esc(recipe.area||recipe.category||'Dinner')}</p><div class="modal-meta"><span>${state.servings} people (approximate scaling)</span><span>${recipe.kcal===null?'Kcal unavailable':`≈ ${recipe.kcal} kcal / serving`}</span></div></div><div class="modal-columns"><div><h3>Ingredients</h3><ul class="modal-ingredients">${recipe.ingredients.map(item=>`<li><div>${esc(item.name)}<small>${esc(scaleMeasure(item.measure)||'Amount as needed')}${atHome(item.name)?' · at home':''}</small></div></li>`).join('')}</ul></div><div><h3>Let's cook</h3><div class="api-instructions">${esc(recipe.instructions||'Open the source recipe for instructions.')}</div><p class="nutrition-note">Calories are a rough ingredient-based estimate assuming four portions. The source does not supply verified nutrition or serving counts. Check labels and actual amounts.</p><p><a href="${esc(recipe.source)}" target="_blank" rel="noopener noreferrer">Original recipe ↗</a></p></div></div>${savedRecipe?`<button class="primary" type="button" data-import-recipe="${esc(recipe.id)}">Add ingredients to shopping list ↗</button>`:''}`;el.dialog.showModal();
+    const personal=recipe.id?.startsWith('my:');
+    el.content.innerHTML=`<div class="modal-header"><div class="section-kicker">${personal?'MY RECIPE':'THEMEALDB RECIPE'}</div><h2 id="recipeTitle">${esc(recipe.title)}</h2><p>${esc(recipe.area||recipe.category||'Dinner')}</p><div class="modal-meta"><span>${state.servings} people (approximate scaling)</span><span>${recipe.kcal===null?'Kcal estimate unavailable':`≈ ${recipe.kcal} kcal / serving`}</span></div></div><div class="modal-columns"><div><h3>Ingredients</h3><ul class="modal-ingredients">${recipe.ingredients.map(item=>`<li><div>${esc(item.name)}<small>${esc(scaleMeasure(item.measure,recipe.baseServings||4)||'Amount as needed')}${atHome(item.name)?' · at home':''}</small></div></li>`).join('')}</ul></div><div><h3>Let's cook</h3><div class="api-instructions">${esc(recipe.instructions||'Use the source link for directions, or edit this recipe to add your own steps.')}</div>${personal?'':`<p class="nutrition-note">Calories are a rough ingredient-based estimate assuming four portions. The source does not supply verified nutrition or serving counts. Check labels and actual amounts.</p>`}${recipe.source?`<p><a href="${esc(recipe.source)}" target="_blank" rel="noopener noreferrer">Original recipe ↗</a></p>`:''}</div></div>${savedRecipe?`<button class="primary" type="button" data-import-recipe="${esc(recipe.id)}">Add ingredients to shopping list ↗</button>`:''}`;el.dialog.showModal();
   }
   let importPreview=null;
   async function reviewIngredients(recipeId) {
@@ -278,6 +293,48 @@
   function addPantry(name) {if(!name||name.length>80)return;state.empty=false;if(!state.pantry.some(item=>norm(item)===norm(name)))state.pantry.push(name);invalidateRecipes();renderPantry();}
   async function loadIngredients() {try{const data=await api('/api/ingredients');const names=data.ingredients||[];el.avoidOptions.innerHTML=names.map(name=>`<option value="${esc(name)}"></option>`).join('');el.pantryOptions.innerHTML=names.map(name=>`<option value="${esc(name)}"></option>`).join('');}catch{el.avoidSearch.placeholder='Type an ingredient to avoid…';}}
 
+  function renderMyRecipes() {
+    $('myRecipeList').innerHTML=myRecipes.length?myRecipes.map(recipe=>`<article class="my-recipe-item"><h3>${esc(recipe.title)}</h3><p>${esc(recipe.area||'My recipes')} · ${recipe.ingredients.length} ingredients</p><div class="my-recipe-item-actions"><button type="button" data-my-view="${esc(recipe.id)}">View recipe</button><button type="button" data-my-edit="${esc(recipe.id)}">Edit</button><button type="button" data-my-delete="${esc(recipe.id)}">Delete</button></div></article>`).join(''):'<p class="my-recipe-empty">No personal recipes yet. Add one by hand or import a link.</p>';
+    $('wizardMyRecipes').innerHTML=myRecipes.length?myRecipes.map(recipe=>`<article class="my-recipe-pick"><strong>${esc(recipe.title)}</strong><span>${recipe.ingredients.length} ingredients · for ${recipe.baseServings||4}</span><button type="button" data-my-toggle="${esc(recipe.id)}" aria-pressed="${selectedIds.includes(recipe.id)}">${selectedIds.includes(recipe.id)?'✓ Selected for this week':'Choose for this week'}</button><button type="button" data-my-view="${esc(recipe.id)}">View recipe</button></article>`).join(''):'<p class="my-recipe-empty">Your saved recipes will appear here. Add one to choose it this week.</p>';
+  }
+  async function refreshMyRecipes() {const data=await api('/api/recipes');myRecipes=data.recipes||[];renderMyRecipes();}
+  function ingredientRow(item={}) {const row=document.createElement('div');row.className='my-recipe-ingredient';row.innerHTML=`<input class="recipe-ingredient-name" type="text" maxlength="100" placeholder="Ingredient name" aria-label="Ingredient name" value="${esc(item.name||'')}"><input class="recipe-ingredient-measure" type="text" maxlength="100" placeholder="Amount" aria-label="Amount" value="${esc(item.measure||'')}"><button type="button" class="remove-recipe-ingredient" aria-label="Remove ingredient">×</button>`;$('myRecipeIngredients').append(row);}
+  function fillMyRecipe(recipe={}) {
+    $('myRecipeName').value=recipe.title||'';$('myRecipeUrl').value=recipe.source||'';$('myRecipeServings').value=recipe.baseServings||4;
+    $('myRecipeCuisine').value=recipe.area==='My recipes'?'':recipe.area||'';$('myRecipeCategory').value=recipe.category==='Homemade'?'':recipe.category||'';
+    $('myRecipeInstructions').value=recipe.instructions||'';$('myRecipeIngredients').replaceChildren();
+    for(const item of recipe.ingredients?.length?recipe.ingredients:[{},{}])ingredientRow(item);
+  }
+  function openMyRecipeEditor(recipe) {
+    editingRecipeId=recipe?.id||null;$('myRecipeDialogTitle').textContent=recipe?'Edit recipe':'Add a recipe';$('myRecipeStatus').textContent='';
+    fillMyRecipe(recipe);$('myRecipeDialog').showModal();$('myRecipeName').focus();
+  }
+  async function importMyRecipe() {
+    const source=$('myRecipeUrl').value.trim();if(!source){$('myRecipeStatus').textContent='Paste a recipe URL first.';return;}
+    $('fetchRecipeBtn').disabled=true;$('myRecipeStatus').textContent='Reading the recipe page…';
+    try {const data=await api('/api/recipes/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({url:source})});fillMyRecipe(data.recipe);$('myRecipeStatus').textContent='Imported. Review the ingredients and servings, then save.';}
+    catch(error){$('myRecipeStatus').textContent=`${error.message} You can enter the details below and keep this link.`;}
+    finally{$('fetchRecipeBtn').disabled=false;}
+  }
+  async function saveMyRecipe(event) {
+    event.preventDefault();const ingredients=[...$('myRecipeIngredients').children].map(row=>({name:row.querySelector('.recipe-ingredient-name').value.trim(),measure:row.querySelector('.recipe-ingredient-measure').value.trim()})).filter(item=>item.name||item.measure);
+    const recipe={title:$('myRecipeName').value.trim(),source:$('myRecipeUrl').value.trim(),baseServings:Number($('myRecipeServings').value),area:$('myRecipeCuisine').value.trim(),category:$('myRecipeCategory').value.trim(),instructions:$('myRecipeInstructions').value.trim(),ingredients};
+    $('saveMyRecipe').disabled=true;$('myRecipeStatus').textContent='Saving recipe…';
+    try {const id=editingRecipeId;const result=await api(id?`/api/recipes/${encodeURIComponent(id)}`:'/api/recipes',{method:id?'PUT':'POST',headers:{'content-type':'application/json'},body:JSON.stringify(recipe)});myRecipes=id?myRecipes.map(item=>item.id===id?result.recipe:item):[...myRecipes,result.recipe];
+      if(wizardStep===3&&selectedIds.includes(result.recipe.id)){syncSelectedRecipes();renderRecipes();}else renderMyRecipes();
+      $('myRecipeDialog').close();showToast(id?'Recipe updated.':'Recipe saved. You can choose it for this week.');}
+    catch(error){$('myRecipeStatus').textContent=error.message||'Could not save the recipe.';}
+    finally{$('saveMyRecipe').disabled=false;}
+  }
+  async function deleteMyRecipe(id) {
+    const recipe=myRecipes.find(item=>item.id===id);if(!recipe||!window.confirm(`Delete “${recipe.title}” from My recipes?`))return;
+    try {await api(`/api/recipes/${encodeURIComponent(id)}`,{method:'DELETE'});myRecipes=myRecipes.filter(item=>item.id!==id);if(wizardStep===3){selectedIds=selectedIds.filter(value=>value!==id);syncSelectedRecipes();renderRecipes();}else renderMyRecipes();showToast('Recipe deleted from your collection.');}
+    catch(error){showToast(error.message||'Could not delete the recipe.');}
+  }
+  function myRecipeAction(event) {const button=event.target.closest('button');if(!button)return;const id=button.dataset.myToggle||button.dataset.myView||button.dataset.myEdit||button.dataset.myDelete;if(!id)return;
+    if(button.dataset.myToggle)toggleMyRecipe(id);else if(button.dataset.myView)openRecipe(myRecipes.find(item=>item.id===id));else if(button.dataset.myEdit)openMyRecipeEditor(myRecipes.find(item=>item.id===id));else if(button.dataset.myDelete)deleteMyRecipe(id);
+  }
+
   $('startWizardBtn').addEventListener('click',()=>startWizard().catch(error=>showToast(error.message||'Could not load the shared week.')));$('emptyStartBtn').addEventListener('click',()=>startWizard().catch(error=>showToast(error.message||'Could not load the shared week.')));el.homeShop.addEventListener('click',()=>el.homeShopping.scrollIntoView({behavior:'smooth'}));$('homeLogo').addEventListener('click',event=>{event.preventDefault();if(wizardStep)leaveWizard();else window.scrollTo({top:0,behavior:'smooth'});});
   $('toKitchenBtn').addEventListener('click',()=>showStep(2));$('backPrefsBtn').addEventListener('click',()=>showStep(1));$('toRecipesBtn').addEventListener('click',()=>{showStep(3);if(candidates.length!==state.dinnerCount*2)generate();});$('backKitchenBtn').addEventListener('click',()=>showStep(2));$('finishBtn').addEventListener('click',()=>leaveWizard(true));
   el.progress.addEventListener('click',event=>{const button=event.target.closest('[data-go-step]');if(!button||button.disabled)return;const step=Number(button.dataset.goStep);showStep(step);if(step===3&&candidates.length!==state.dinnerCount*2)generate();});
@@ -286,6 +343,9 @@
   el.empty.addEventListener('change',()=>{state.empty=el.empty.checked;if(state.empty)state.pantry=[];invalidateRecipes();renderPantry();});$('addPantryBtn').addEventListener('click',()=>{addPantry(el.pantrySearch.value.trim());el.pantrySearch.value='';});el.pantrySearch.addEventListener('keydown',event=>{if(event.key==='Enter'){$('addPantryBtn').click();}});el.pantry.addEventListener('click',event=>{const button=event.target.closest('[data-remove-pantry]');if(button){state.pantry.splice(Number(button.dataset.removePantry),1);invalidateRecipes();renderPantry();}});
   el.planBtn.addEventListener('click',()=>generate());el.grid.addEventListener('click',event=>{const recipe=event.target.closest('[data-recipe]'),toggle=event.target.closest('[data-toggle]');if(recipe)openRecipe(candidates[Number(recipe.dataset.recipe)]);else if(toggle)toggleCandidate(Number(toggle.dataset.toggle));});el.homeGrid.addEventListener('click',event=>{const recipe=event.target.closest('[data-recipe]'),toggle=event.target.closest('[data-home-toggle]');if(recipe)openRecipe(state.recipes[Number(recipe.dataset.recipe)],true);else if(toggle)toggleHomeRecipe(Number(toggle.dataset.homeToggle));});
   $('addPeriodBtn').addEventListener('click',()=>reviewIngredients());el.content.addEventListener('click',event=>{const button=event.target.closest('[data-import-recipe]');if(button){el.dialog.close();reviewIngredients(button.dataset.importRecipe);}});$('cancelImport').addEventListener('click',()=>$('importDialog').close());$('importForm').addEventListener('submit',addReviewedIngredients);
+  $('homeAddRecipe').addEventListener('click',()=>openMyRecipeEditor());$('wizardAddRecipe').addEventListener('click',()=>openMyRecipeEditor());$('myRecipeList').addEventListener('click',myRecipeAction);$('wizardMyRecipes').addEventListener('click',myRecipeAction);
+  $('fetchRecipeBtn').addEventListener('click',importMyRecipe);$('addRecipeIngredient').addEventListener('click',()=>ingredientRow());$('myRecipeIngredients').addEventListener('click',event=>{if(event.target.closest('.remove-recipe-ingredient')){const rows=$('myRecipeIngredients');event.target.closest('.my-recipe-ingredient').remove();if(!rows.children.length)ingredientRow();}});
+  $('cancelMyRecipe').addEventListener('click',()=>$('myRecipeDialog').close());$('myRecipeForm').addEventListener('submit',saveMyRecipe);
   el.list.addEventListener('change',event=>{const input=event.target.closest('[data-item]');if(!input)return;const item=aggregate()[Number(input.dataset.item)];if(item){const key=norm(item.name),value=input.checked;state.checked[key]=value;renderShopping();queueSharedChange(plan=>{plan.checked[key]=value;});}});$('closeDialog').addEventListener('click',()=>el.dialog.close());el.dialog.addEventListener('click',event=>{if(event.target===el.dialog)el.dialog.close();});
-  renderHome();refreshWeek().catch(error=>showToast(error.message||'Could not load the shared week.'));setInterval(()=>refreshWeek().catch(()=>{}),10000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshWeek().catch(()=>{});});window.addEventListener('focus',()=>refreshWeek().catch(()=>{}));loadIngredients();
+  renderHome();refreshWeek().catch(error=>showToast(error.message||'Could not load the shared week.'));refreshMyRecipes().catch(error=>showToast(error.message||'Could not load your recipes.'));setInterval(()=>refreshWeek().catch(()=>{}),10000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){refreshWeek().catch(()=>{});refreshMyRecipes().catch(()=>{});}});window.addEventListener('focus',()=>refreshWeek().catch(()=>{}));loadIngredients();
 })();

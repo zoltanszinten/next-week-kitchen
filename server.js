@@ -4,10 +4,12 @@ import { networkInterfaces } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { addMissingEstimates, ingredientNames, makePlan } from './meal-data.js';
+import { cleanRecipe, importRecipeUrl } from './recipe-import.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC = join(ROOT, 'public');
 const WEEK_FILE = join(ROOT, 'data', 'week.json');
+const RECIPES_FILE = join(ROOT, 'data', 'recipes.json');
 const MAX_BODY = 1024 * 1024;
 const MAX_WEEK_BODY = 1024 * 1024;
 const STATIC = new Map([
@@ -96,13 +98,33 @@ export function createWeekStore(file = WEEK_FILE) {
   };
 }
 
+export function createRecipeStore(file = RECIPES_FILE) {
+  let writing = Promise.resolve();
+  async function read() {
+    try { const recipes = JSON.parse(await readFile(file, 'utf8')); return Array.isArray(recipes) ? recipes : []; }
+    catch(error) { if(error.code === 'ENOENT')return []; throw error; }
+  }
+  function change(apply) {
+    const task=writing.then(async()=>{
+      const current=await read(),next=apply(current);
+      await mkdir(dirname(file),{recursive:true});
+      const temporary=`${file}.${process.pid}.${Date.now()}.tmp`;
+      try {await writeFile(temporary,JSON.stringify(next,null,2),{flag:'wx'});await rename(temporary,file);}
+      finally {await rm(temporary,{force:true});}
+      return next;
+    });
+    writing=task.catch(()=>{});return task;
+  }
+  return { read, change };
+}
+
 function sendJson(response, status, value) {
   const body = JSON.stringify(value);
   response.writeHead(status, { 'content-type':'application/json; charset=utf-8', 'content-length':Buffer.byteLength(body), 'cache-control':'no-store', 'x-content-type-options':'nosniff' });
   response.end(body);
 }
 
-export function createAppServer({ ingredients = ingredientNames, plan = makePlan, weekStore = createWeekStore(), lan = false } = {}) {
+export function createAppServer({ ingredients = ingredientNames, plan = makePlan, weekStore = createWeekStore(), recipeStore = createRecipeStore(), importRecipe = importRecipeUrl, lan = false } = {}) {
   const allowedHosts = new Set(['127.0.0.1', 'localhost', ...(lan ? lanAddresses() : [])]);
   return http.createServer(async (request, response) => {
     try {
@@ -111,6 +133,33 @@ export function createAppServer({ ingredients = ingredientNames, plan = makePlan
       if (!hostMatch || !allowedHosts.has(hostMatch[1]) || (lan && !privateIpv4(request.socket.remoteAddress || ''))) throw new HttpError(403, 'Local network requests only.');
       const url = new URL(request.url, `http://${host}`);
       if (url.pathname.startsWith('/api/')) {
+        if(url.pathname==='/api/recipes'&&request.method==='GET')return sendJson(response,200,{recipes:await recipeStore.read()});
+        if(url.pathname==='/api/recipes/import'&&request.method==='POST'){
+          if(request.headers.origin&&request.headers.origin!==`http://${host}`)throw new HttpError(403,'Cross-site requests are blocked.');
+          if(!String(request.headers['content-type']||'').startsWith('application/json'))throw new HttpError(415,'Send JSON.');
+          const input=await readBody(request);
+          try{return sendJson(response,200,{recipe:await importRecipe(input?.url)});}
+          catch(error){throw new HttpError(422,error.message||'Could not import this recipe.');}
+        }
+        if(url.pathname==='/api/recipes'&&request.method==='POST'){
+          if(request.headers.origin&&request.headers.origin!==`http://${host}`)throw new HttpError(403,'Cross-site requests are blocked.');
+          if(!String(request.headers['content-type']||'').startsWith('application/json'))throw new HttpError(415,'Send JSON.');
+          let recipe;try{recipe=cleanRecipe(await readBody(request),`my:${crypto.randomUUID()}`);}catch(error){throw new HttpError(400,error.message);}
+          await recipeStore.change(current=>{if(current.length>=200)throw new HttpError(400,'The recipe collection is full.');return [...current,recipe];});
+          return sendJson(response,201,{recipe});
+        }
+        if(url.pathname.startsWith('/api/recipes/')&&(request.method==='PUT'||request.method==='DELETE')){
+          if(request.headers.origin&&request.headers.origin!==`http://${host}`)throw new HttpError(403,'Cross-site requests are blocked.');
+          const id=decodeURIComponent(url.pathname.slice('/api/recipes/'.length));
+          if(!/^my:[a-f0-9-]{36}$/i.test(id))throw new HttpError(404,'Recipe not found.');
+          let recipe;
+          if(request.method==='PUT'){
+            if(!String(request.headers['content-type']||'').startsWith('application/json'))throw new HttpError(415,'Send JSON.');
+            try{recipe=cleanRecipe(await readBody(request),id);}catch(error){throw new HttpError(400,error.message);}
+          }
+          await recipeStore.change(current=>{const index=current.findIndex(item=>item.id===id);if(index<0)throw new HttpError(404,'Recipe not found.');const next=[...current];if(recipe)next[index]=recipe;else next.splice(index,1);return next;});
+          return sendJson(response,200,recipe?{recipe}:{deleted:true});
+        }
         if (url.pathname === '/api/week' && request.method === 'GET') return sendJson(response, 200, addMissingEstimates(await weekStore.read()));
         if (url.pathname === '/api/week' && request.method === 'PUT') {
           if (request.headers.origin && request.headers.origin !== `http://${host}`) throw new HttpError(403, 'Cross-site requests are blocked.');
